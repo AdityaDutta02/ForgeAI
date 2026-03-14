@@ -1,0 +1,74 @@
+# forge.config.yaml — ForgeAI per-project configuration
+# Copy this file to your project root to customize ForgeAI behavior.
+# All values shown are defaults. Only override what you need to change.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODEL TIERS
+# ─────────────────────────────────────────────────────────────────────────────
+# Claude Code's Agent tool accepts three tier names: haiku | sonnet | opus
+# These tiers route to the actual model resolved by your backend (see PROVIDER
+# section below). You cannot name gpt-4o or openrouter/xxx directly here.
+#
+# Tier → default Claude model (when using Anthropic backend):
+#   haiku  → claude-haiku-4-5
+#   sonnet → claude-sonnet-4-6
+#   opus   → claude-opus-4-6
+
+models:
+  god_agent:    opus    # blueprint generation + orchestration
+  coder_simple: haiku   # pure functions, <20 lines, no I/O
+  coder_medium: sonnet  # DB calls, validation, 20–60 lines
+  coder_complex: opus   # auth, pipelines, security-critical, >60 lines
+  watcher:      sonnet  # logic review — all functions
+
+limits:
+  max_parallel_agents: 8       # concurrent Agent calls (lower if hitting rate limits)
+  max_retries_per_function: 1  # coder retries before escalation
+  token_budget: 100000         # soft limit — god-agent pauses + reports if approached
+
+checks:
+  # Deterministic checks run after each coder agent. No LLM cost.
+  # Failures trigger a retry before the watcher runs.
+  typecheck: tsc --noEmit
+  lint: npx eslint --ext .ts,.tsx
+  test: npx vitest run
+
+  run_typecheck: true   # set false for projects without tsconfig
+  run_lint: true        # set false for projects without eslint
+  run_test: true        # set false for projects without a test runner
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PROVIDER / BACKEND (set via shell environment, not this file)
+# ─────────────────────────────────────────────────────────────────────────────
+# Claude Code reads provider config from environment variables.
+# Set these in your shell profile (~/.zshrc, ~/.bashrc) or a project .env.
+#
+# ANTHROPIC (default — no extra config needed):
+#   export ANTHROPIC_API_KEY=sk-ant-...
+#
+# OPENROUTER (Claude + GPT-4o + Gemini + Llama + 200+ models):
+#   export ANTHROPIC_BASE_URL=https://openrouter.ai/api/v1
+#   export ANTHROPIC_API_KEY=sk-or-...          # your OpenRouter key
+#   # Optionally pin a specific model for each tier via ANTHROPIC_MODEL_*:
+#   export ANTHROPIC_MODEL_HAIKU=google/gemini-2.5-flash
+#   export ANTHROPIC_MODEL_SONNET=openai/gpt-4o
+#   export ANTHROPIC_MODEL_OPUS=openai/gpt-4o
+#
+# OPENAI DIRECTLY (via LiteLLM proxy — see README for setup):
+#   export ANTHROPIC_BASE_URL=http://localhost:4000   # LiteLLM proxy
+#   export ANTHROPIC_API_KEY=sk-...                   # your OpenAI key
+#   export ANTHROPIC_MODEL_HAIKU=gpt-4o-mini
+#   export ANTHROPIC_MODEL_SONNET=gpt-4o
+#   export ANTHROPIC_MODEL_OPUS=gpt-4o
+#
+# LOCAL MODELS via Ollama + LiteLLM:
+#   export ANTHROPIC_BASE_URL=http://localhost:4000
+#   export ANTHROPIC_API_KEY=anything              # LiteLLM accepts any value
+#   export ANTHROPIC_MODEL_HAIKU=ollama/qwen2.5-coder:7b
+#   export ANTHROPIC_MODEL_SONNET=ollama/qwen2.5-coder:32b
+#   export ANTHROPIC_MODEL_OPUS=ollama/qwen2.5-coder:72b
+#
+# Note: ANTHROPIC_MODEL_HAIKU / ANTHROPIC_MODEL_SONNET / ANTHROPIC_MODEL_OPUS
+# are ForgeAI conventions read by the god-agent to inject into Agent prompts.
+# They are NOT official Claude Code env vars (those are ANTHROPIC_BASE_URL +
+# ANTHROPIC_API_KEY). See README § Provider Setup for the full picture.
