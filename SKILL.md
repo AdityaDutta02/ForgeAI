@@ -101,6 +101,26 @@ DB planner needed IF:   any function file contains /db/, /models/, /repositories
                         OR function name contains: find, get, fetch, create, update, delete, upsert, query
 iOS planner needed IF:  any .swift files OR Sources/ directory exists in project
 Android planner needed IF: any .kt files in android/ OR app/src/main/java/ exists in project
+
+API planner needed IF:    any function file contains /api/, /routes/, /controllers/, /handlers/
+                          OR function name contains: get, post, put, delete, patch, endpoint, route, handler
+Auth planner needed IF:   any function name contains: login, logout, signup, auth, session, permission, role, jwt, token
+Payment planner needed IF: package.json contains stripe OR lemonsqueezy OR paddle
+                          OR any function name contains: payment, checkout, subscription, billing, invoice, webhook
+Jobs planner needed IF:   package.json contains inngest OR trigger.dev OR bullmq
+                          OR any function name contains: queue, job, worker, schedule, cron, process
+Realtime planner needed IF: package.json contains @supabase/supabase-js AND any function contains: subscribe, broadcast, presence, channel, realtime
+Storage planner needed IF: any function name contains: upload, download, storage, bucket, file, image, attachment
+Cache planner needed IF:  package.json contains @upstash/redis OR ioredis OR redis
+                          OR any function name contains: cache, redis, kvstore
+State planner needed IF:  any function file contains /store/, /hooks/use, /state/
+                          OR package.json contains zustand OR jotai OR swr OR react-query
+Email planner needed IF:  package.json contains resend OR sendgrid OR nodemailer
+                          OR any function name contains: email, send, notify, welcome, digest, alert
+Search planner needed IF: package.json contains algoliasearch OR typesense OR meilisearch
+                          OR any function name contains: search, typeahead, autocomplete, index
+AI planner needed IF:     package.json contains @anthropic-ai/sdk OR openai OR @ai-sdk/
+                          OR any function name contains: generate, complete, embed, classify, extract, stream, chat, llm
 ```
 
 Spawn all needed domain planners **simultaneously** (one Agent call per domain, run_in_background: true):
@@ -208,6 +228,75 @@ After all planning agents complete, merge their YAML outputs into the blueprint:
 Coder agents receive the enriched spec — the `{ui_spec}`, `{db_spec}`, etc. fields are injected into their FUNCTION SPEC block so they implement exactly what the planner specified.
 
 **Skip planning** for a domain if no functions matched. Do not spawn idle planner agents.
+
+---
+
+## Phase 1.5b — Cross-Cutting Planners (parallel with 1.5a)
+
+Run SIMULTANEOUSLY with Phase 1.5a domain planners:
+
+Spawn all cross-cutting planners simultaneously (run_in_background: true):
+
+### Security Planner
+Always runs — every project needs security review.
+```
+Agent(model: sonnet, run_in_background: true,
+  prompt: "{forge-plan-security.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
+```
+
+### Error Handling Planner
+Always runs — every project needs a typed error taxonomy.
+```
+Agent(model: sonnet, run_in_background: true,
+  prompt: "{forge-plan-errors.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
+```
+
+### Testing Strategy Planner
+Always runs — every project needs test coverage planning.
+```
+Agent(model: sonnet, run_in_background: true,
+  prompt: "{forge-plan-testing-strategy.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
+```
+
+### Performance Planner
+Always runs — every project benefits from performance budgets.
+```
+Agent(model: sonnet, run_in_background: true,
+  prompt: "{forge-plan-performance.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
+```
+
+### Logging Planner
+Always runs — every project needs structured logging.
+```
+Agent(model: haiku, run_in_background: true,
+  prompt: "{forge-plan-logging.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
+```
+
+### Analytics Planner
+Run IF: blueprint has any user-facing functions (UI components, API endpoints, auth flows).
+```
+Agent(model: haiku, run_in_background: true,
+  prompt: "{forge-plan-analytics.md}\n\nUSER-FACING FUNCTIONS:\n{filtered blueprint functions}")
+```
+
+### i18n Planner
+Run IF: project has multiple locales OR any function has user-visible string output.
+```
+Agent(model: haiku, run_in_background: true,
+  prompt: "{forge-plan-i18n.md}\n\nFUNCTIONS WITH USER-VISIBLE TEXT:\n{filtered blueprint functions}")
+```
+
+### Merge Cross-Cutting Planner Outputs into Blueprint
+
+After all Phase 1.5a + 1.5b planners complete:
+- Add `security_spec` field to each function (from security planner per_function output)
+- Add `error_spec` field to each function (error types to throw, from error planner per_function)
+- Add `test_spec` field to each function (test cases, mock boundary, from testing planner)
+- Add `logging_spec` field to each function (log_on_success, log_on_failure, never_log fields)
+- Store `performance_notes` globally in blueprint (indexes to add, patterns to avoid)
+- Store `analytics_events` globally (events to fire, keyed by trigger function name)
+
+Coder agents receive their function's accumulated spec: `{ui_spec}`, `{db_spec}`, `{security_spec}`, `{error_spec}`, `{logging_spec}`, `{test_spec}`.
 
 ---
 

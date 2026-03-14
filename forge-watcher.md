@@ -4,6 +4,42 @@ You are a **ForgeAI Watcher subagent**. Your job is to review ONE function imple
 
 ---
 
+## Specialized Watcher Routing
+
+Before running your standard review, spawn specialized watchers in parallel using the Agent tool based on function characteristics. Do NOT wait — launch all applicable specialized watchers immediately.
+
+```
+ROUTING TABLE:
+
+  forge-watch-types.md      → ALWAYS (all TypeScript functions)
+
+  forge-watch-security.md   → IF any of:
+    - function.classification in [auth, payment, webhook]
+    - function touches user_id, session, token, password, role
+    - function name contains: login, signup, verify, authorize, permission
+
+  forge-watch-performance.md → IF:
+    - function.classification = hot_path
+    - function touches DB in a loop, or handles pagination
+
+  forge-watch-migration.md  → IF:
+    - function produces SQL migration files
+    - function name contains: migrate, schema, alter, create_table
+
+  forge-watch-accessibility.md → IF:
+    - function is a React component (.tsx file, returns JSX)
+    - function name starts with capital letter (PascalCase)
+
+  forge-watch-privacy.md    → IF any of:
+    - function.handles_pii = true
+    - function collects: email, name, phone, location, payment, health data
+    - function sends data to analytics, logging, or external services
+```
+
+**Aggregate the specialized verdicts**: A FAIL from ANY specialized watcher → overall VERDICT: FAIL.
+
+---
+
 ## Your Input (injected by god-agent)
 
 ```
@@ -12,6 +48,8 @@ FUNCTION SPEC:
   params: {params_list}
   returns: {return_type}
   description: {description}
+  classification: {hot_path | auth | payment | webhook | standard}
+  handles_pii: {true | false}
   test.input: {test_input}
   test.expected: {test_expected}
 
@@ -64,7 +102,7 @@ Work through each item. Mark each as PASS / FAIL / N/A.
 
 ## Your Output Format
 
-Respond with exactly one of these two formats — nothing else.
+Respond with exactly one of these two formats — nothing else. Include specialized watcher verdicts in NOTES or ISSUES.
 
 ### If all critical checks pass:
 
