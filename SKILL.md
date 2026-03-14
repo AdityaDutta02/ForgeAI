@@ -90,6 +90,127 @@ Wait for user confirmation before proceeding to Phase 2.
 
 ---
 
+## Phase 1.5 — Domain Planning (parallel, runs after user approves blueprint)
+
+Inspect the blueprint to determine which domain planners are needed:
+
+```
+UI planner needed IF:   any function file contains /components/, /pages/, /app/, /ui/, /screens/
+                        OR function name contains: render, display, view, screen, form, modal, card, layout
+DB planner needed IF:   any function file contains /db/, /models/, /repositories/, /queries/, /migrations/
+                        OR function name contains: find, get, fetch, create, update, delete, upsert, query
+iOS planner needed IF:  any .swift files OR Sources/ directory exists in project
+Android planner needed IF: any .kt files in android/ OR app/src/main/java/ exists in project
+```
+
+Spawn all needed domain planners **simultaneously** (one Agent call per domain, run_in_background: true):
+
+### UI Planner Agent
+```
+Agent(
+  subagent_type: "general-purpose",
+  model: sonnet,
+  run_in_background: true,
+  prompt: """
+    {full content of ~/.claude/skills/forge/forge-plan-ui.md}
+    ---
+    PROJECT CONTEXT:
+      name: {project.name}
+      tech_stack: {project.tech_stack}
+      existing_components: {Glob result for src/**/*.tsx src/**/*.jsx}
+
+    UI FUNCTIONS TO PLAN:
+    {blueprint functions whose file paths match UI patterns}
+
+    DESIGN CONSTRAINTS:
+    {content of tailwind.config.* and/or globals.css if found}
+  """
+)
+```
+
+### DB Planner Agent
+```
+Agent(
+  subagent_type: "general-purpose",
+  model: sonnet,
+  run_in_background: true,
+  prompt: """
+    {full content of ~/.claude/skills/forge/forge-plan-db.md}
+    ---
+    PROJECT CONTEXT:
+      name: {project.name}
+      db_provider: {detected from package.json: supabase-js → supabase, prisma → prisma, etc.}
+      existing_schema: {content of prisma/schema.prisma OR supabase/migrations/*.sql if found}
+      orm: {detected from package.json dependencies}
+
+    DB FUNCTIONS TO PLAN:
+    {blueprint functions whose file paths or names match DB patterns}
+  """
+)
+```
+
+### iOS Planner Agent
+```
+Agent(
+  subagent_type: "general-purpose",
+  model: sonnet,
+  run_in_background: true,
+  prompt: """
+    {full content of ~/.claude/skills/forge/forge-plan-ios.md}
+    ---
+    PROJECT CONTEXT:
+      name: {project.name}
+      ios_target: {from project.pbxproj or Package.swift}
+      swift_version: {from Package.swift}
+      package_manager: {SwiftPM | CocoaPods based on file presence}
+      existing_packages: {Package.swift dependencies or Podfile}
+      ui_framework: SwiftUI
+      architecture: MVVM
+
+    iOS FUNCTIONS TO PLAN:
+    {blueprint functions in .swift files}
+  """
+)
+```
+
+### Android Planner Agent
+```
+Agent(
+  subagent_type: "general-purpose",
+  model: sonnet,
+  run_in_background: true,
+  prompt: """
+    {full content of ~/.claude/skills/forge/forge-plan-android.md}
+    ---
+    PROJECT CONTEXT:
+      name: {project.name}
+      min_sdk: {from build.gradle.kts}
+      compose_version: {from libs.versions.toml or build.gradle.kts}
+      existing_dependencies: {from libs.versions.toml or build.gradle.kts}
+      architecture: MVVM
+      di_framework: {Hilt | Koin based on existing deps}
+
+    ANDROID FUNCTIONS TO PLAN:
+    {blueprint functions in .kt files}
+  """
+)
+```
+
+### Merge Planning Outputs into Blueprint
+
+After all planning agents complete, merge their YAML outputs into the blueprint:
+- For each function in `ui_plan.components`: find the matching blueprint function by `function_name` and add a `ui_spec` field with the full component plan
+- For each function in `db_plan.functions`: add a `db_spec` field
+- For each function in `ios_plan.views` + `ios_plan.services`: add an `ios_spec` field
+- For each function in `android_plan.composables` + `android_plan.repositories`: add an `android_spec` field
+- Run `ui_plan.install_commands` / `android_plan.dependencies` before starting coders
+
+Coder agents receive the enriched spec — the `{ui_spec}`, `{db_spec}`, etc. fields are injected into their FUNCTION SPEC block so they implement exactly what the planner specified.
+
+**Skip planning** for a domain if no functions matched. Do not spawn idle planner agents.
+
+---
+
 ## Phase 2 — Parallel Build Loop
 
 For each batch in `blueprint.build_order`:
