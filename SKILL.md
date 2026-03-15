@@ -231,72 +231,31 @@ Coder agents receive the enriched spec — the `{ui_spec}`, `{db_spec}`, etc. fi
 
 ---
 
-## Phase 1.5b — Cross-Cutting Planners (parallel with 1.5a)
+## Phase 1.5b — Cross-Cutting Spec (static, no agents)
 
-Run SIMULTANEOUSLY with Phase 1.5a domain planners:
+Build CROSS_CUTTING_SPEC as a static string. Do NOT spawn planner agents.
+Inject this block into every coder prompt under "CROSS-CUTTING REQUIREMENTS".
 
-Spawn all cross-cutting planners simultaneously (run_in_background: true):
+```
+CROSS_CUTTING_SPEC = """
+ERRORS: Throw typed errors (class AuthError/DatabaseError/ValidationError extends Error).
+Never throw plain strings. Never swallow — always rethrow or return Result type.
 
-### Security Planner
-Always runs — every project needs security review.
-```
-Agent(model: sonnet, run_in_background: true,
-  prompt: "{forge-plan-security.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
-```
+LOGGING: logger.info/warn/error({ msg, ...context }). No console.log.
+Never log PII — use userId, not email/name/phone.
 
-### Error Handling Planner
-Always runs — every project needs a typed error taxonomy.
-```
-Agent(model: sonnet, run_in_background: true,
-  prompt: "{forge-plan-errors.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
-```
+TESTING: Write happy path + ≥1 error/edge case per function. vi.mock() for DB/HTTP deps.
 
-### Testing Strategy Planner
-Always runs — every project needs test coverage planning.
-```
-Agent(model: sonnet, run_in_background: true,
-  prompt: "{forge-plan-testing-strategy.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
+SECURITY: user_id always from session.user.id. Parameterized DB queries (.eq/.filter).
+Validate all external input with Zod before use.
+
+PERFORMANCE: No DB in loops. Explicit column selection. Parallel awaits where independent.
+"""
 ```
 
-### Performance Planner
-Always runs — every project benefits from performance budgets.
-```
-Agent(model: sonnet, run_in_background: true,
-  prompt: "{forge-plan-performance.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
-```
-
-### Logging Planner
-Always runs — every project needs structured logging.
-```
-Agent(model: haiku, run_in_background: true,
-  prompt: "{forge-plan-logging.md}\n\nALL BLUEPRINT FUNCTIONS:\n{full blueprint function list}")
-```
-
-### Analytics Planner
-Run IF: blueprint has any user-facing functions (UI components, API endpoints, auth flows).
-```
-Agent(model: haiku, run_in_background: true,
-  prompt: "{forge-plan-analytics.md}\n\nUSER-FACING FUNCTIONS:\n{filtered blueprint functions}")
-```
-
-### i18n Planner
-Run IF: project has multiple locales OR any function has user-visible string output.
-```
-Agent(model: haiku, run_in_background: true,
-  prompt: "{forge-plan-i18n.md}\n\nFUNCTIONS WITH USER-VISIBLE TEXT:\n{filtered blueprint functions}")
-```
-
-### Merge Cross-Cutting Planner Outputs into Blueprint
-
-After all Phase 1.5a + 1.5b planners complete:
-- Add `security_spec` field to each function (from security planner per_function output)
-- Add `error_spec` field to each function (error types to throw, from error planner per_function)
-- Add `test_spec` field to each function (test cases, mock boundary, from testing planner)
-- Add `logging_spec` field to each function (log_on_success, log_on_failure, never_log fields)
-- Store `performance_notes` globally in blueprint (indexes to add, patterns to avoid)
-- Store `analytics_events` globally (events to fire, keyed by trigger function name)
-
-Coder agents receive their function's accumulated spec: `{ui_spec}`, `{db_spec}`, `{security_spec}`, `{error_spec}`, `{logging_spec}`, `{test_spec}`.
+After Phase 1.5a domain planners complete, merge their YAML outputs into the blueprint as before.
+Coder agents receive: `{ui_spec}`, `{db_spec}`, `{ios_spec}`, `{android_spec}` from domain planners,
+plus the static `CROSS_CUTTING_SPEC` (no per-function fields from cross-cutting planners needed).
 
 ---
 
@@ -333,7 +292,17 @@ Agent(
     {extract only the type signatures / return types of each dep — no implementations}
 
     PROJECT CONVENTIONS:
-    {CONVENTIONS_BLOCK}
+    {CONVENTIONS_BLOCK filtered by function file path:
+      src/db/**       → TypeScript + Supabase sections only (skip React, Next.js)
+      src/lib/**      → TypeScript section only
+      src/services/** → TypeScript + Next.js server sections only
+      src/app/api/**  → TypeScript + Next.js API routes sections
+      **/*.tsx        → TypeScript + Next.js + React sections
+      (other paths)   → TypeScript section only
+    }
+
+    CROSS-CUTTING REQUIREMENTS:
+    {CROSS_CUTTING_SPEC}
 
     EXISTING FILE CONTENT:
     {read file if it exists, otherwise: "FILE DOES NOT EXIST YET"}

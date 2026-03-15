@@ -19,12 +19,12 @@ models:
   coder_simple: haiku   # pure functions, <20 lines, no I/O
   coder_medium: sonnet  # DB calls, validation, 20–60 lines
   coder_complex: opus   # auth, pipelines, security-critical, >60 lines
-  watcher:      sonnet  # logic review — all functions
+  watcher:      haiku   # inline checklist review — pattern-matching, not complex reasoning
 
 limits:
   max_parallel_agents: 8       # concurrent Agent calls (lower if hitting rate limits)
   max_retries_per_function: 1  # coder retries before escalation
-  token_budget: 100000         # soft limit — god-agent pauses + reports if approached
+  token_budget: 30000          # soft limit — god-agent pauses + reports if approached
 
 checks:
   # Deterministic checks run after each coder agent. No LLM cost.
